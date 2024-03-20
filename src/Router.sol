@@ -224,6 +224,7 @@ contract Router {
     function y(uint64 strike, uint256 loan, uint256 minOut) public payable returns (uint256, uint32) {
         uint256 value = msg.value;
         bytes memory data = abi.encode(LOAN_Y, msg.sender, strike, value + loan, minOut);
+
         aavePool.flashLoanSimple(address(this), address(weth), loan, data, 0);
 
         uint256 amount = vault.yMulti().balanceOf(address(this), strike);

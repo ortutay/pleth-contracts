@@ -9,6 +9,20 @@ import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.s
 contract BaseTest is Test {
     using SafeERC20 for IERC20;
 
+    // Tokens
+    address public weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
+    address public steth = 0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84;
+    address public wsteth = 0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0;
+ 
+     // Uniswap
+    address public uniswapV3Factory = 0x1F98431c8aD98523631AE4a59f267346ea31F984;
+    address public nonfungiblePositionManager = 0xC36442b4a4522E871399CD717aBDD847Ab11FE88;
+    address public swapRouter = 0xE592427A0AEce92De3Edee1F18E0157C05861564;
+    address public quoterV2 = 0x61fFE014bA17989E743c5F6cB21bF9697530B21e;
+
+    // Aave
+    address public aavePool = 0x87870Bca3F3fD6335C3F4ce8392D69350B4fA4E2;
+
     address public alice;
     address public bob;
     address public chad;

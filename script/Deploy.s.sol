@@ -11,6 +11,8 @@ import { Router } from  "../src/Router.sol";
 
 import { BaseScript } from "./BaseScript.sol";
 import { FakeOracle } from  "../test/helpers/FakeOracle.sol";
+import { IStEth } from "../src/interfaces/IStEth.sol";
+import { StETHERC4626 } from "../src/assets/StETHERC4626.sol";
 
 // Uniswap interfaces
 import { IUniswapV3Pool } from "../src/interfaces/uniswap/IUniswapV3Pool.sol";
@@ -47,7 +49,8 @@ contract DeployScript is BaseScript {
         FakeOracle oracle = new FakeOracle();
         oracle.setPrice(1999_00000000);
 
-        vault = new Vault(steth, address(oracle));
+        StETHERC4626 asset = new StETHERC4626(steth);
+        vault = new Vault(address(asset), address(oracle));
 
         if (true) {
             deployUniswap(strike1, 73044756656988589698425290750, 85935007831751276823975034880);

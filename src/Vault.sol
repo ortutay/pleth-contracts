@@ -5,12 +5,14 @@ import "forge-std/console.sol";
 
 import { SafeERC20 } from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import { IStEth } from "./interfaces/IStEth.sol";
 import { IOracle } from "./interfaces/IOracle.sol";
+import { IAsset } from "./interfaces/IAsset.sol";
 
 import { HodlMultiToken } from "./multi/HodlMultiToken.sol";
 import { YMultiToken } from "./multi/YMultiToken.sol";
 import { HodlToken } from  "./single/HodlToken.sol";
+
+import { StETHERC4626 } from "./assets/StETHERC4626.sol";
 
 
 contract Vault {
@@ -20,8 +22,9 @@ contract Vault {
 
     uint32 public nextId = 1;
 
-    IStEth public immutable stEth;
     IOracle public immutable oracle;
+
+    IAsset public immutable asset;
 
     HodlMultiToken public immutable hodlMulti;
     YMultiToken public immutable yMulti;
@@ -114,11 +117,10 @@ contract Vault {
                     uint32 indexed stakeId,
                     uint256 amount);
 
-    constructor(address stEth_, address oracle_) {
-        require(stEth_ != address(0));
+    constructor(address asset_, address oracle_) {
         require(oracle_ != address(0));
 
-        stEth = IStEth(stEth_);
+        asset = IAsset(asset_);
         oracle = IOracle(oracle_);
 
         hodlMulti = new HodlMultiToken("");
@@ -156,10 +158,16 @@ contract Vault {
     function mint(uint64 strike) external payable {
         require(oracle.price(0) <= strike, "strike too low");
 
-        uint256 before = stEth.balanceOf(address(this));
-        stEth.submit{value: msg.value}(address(0));
-        uint256 delta = stEth.balanceOf(address(this)) - before;
-        deposits += delta;
+        IERC20 token = IERC20(asset.asset());
+
+        uint256 before = token.balanceOf(address(this));
+        asset.wrap{value: msg.value}(0);
+        /* token.safeTransferFrom(msg.sender, address(this), amount); */
+        uint256 amount = token.balanceOf(address(this)) - before;
+
+        token.approve(address(asset), amount);
+        asset.deposit(amount, address(this));
+        deposits += amount;
 
         // create the epoch if needed
         if (epochs[strike] == 0) {
@@ -168,10 +176,10 @@ contract Vault {
         }
 
         // mint hodl + y
-        hodlMulti.mint(msg.sender, strike, delta);
-        yMulti.mint(msg.sender, strike, delta);
+        hodlMulti.mint(msg.sender, strike, amount);
+        yMulti.mint(msg.sender, strike, amount);
 
-        emit Mint(msg.sender, strike, delta);
+        emit Mint(msg.sender, strike, amount);
     }
 
     function canRedeem(uint32 stakeId) public view returns (bool) {
@@ -195,6 +203,13 @@ contract Vault {
         return false;
     }
 
+    function _withdraw(uint256 amount, address user) private returns (uint256) {
+        asset.withdraw(_min(amount, asset.maxWithdraw(address(this))),
+                       user,
+                       address(this));
+        return amount;
+    }
+
     function merge(uint64 strike, uint256 amount) external {
         require(hodlMulti.balanceOf(msg.sender, strike) >= amount);
         require(yMulti.balanceOf(msg.sender, strike) >= amount);
@@ -202,8 +217,7 @@ contract Vault {
         hodlMulti.burn(msg.sender, strike, amount);
         yMulti.burn(msg.sender, strike, amount);
 
-        amount = _min(amount, stEth.balanceOf(address(this)));
-        stEth.transfer(msg.sender, amount);
+        amount = _withdraw(amount, msg.sender);
 
         deposits -= amount;
     }
@@ -239,9 +253,7 @@ contract Vault {
         // burn all staked y tokens at that strike
         yMulti.burnStrike(stk.strike);
 
-        amount = _min(amount, stEth.balanceOf(address(this)));
-        stEth.transfer(msg.sender, amount);
-
+        amount = _withdraw(amount, msg.sender);
         deposits -= amount;
 
         emit HodlRedeemed(msg.sender, stk.strike, stakeId, amount);
@@ -322,11 +334,9 @@ contract Vault {
     function claim(uint32 stakeId) public {
         YStake storage stk = yStakes[stakeId];
         require(stk.user == msg.sender, "y claim user");
-        uint256 amount = _min(claimable(stakeId), stEth.balanceOf(address(this)));
 
+        uint256 amount = _withdraw(claimable(stakeId), msg.sender);
         stk.claimed += amount;
-
-        stEth.transfer(msg.sender, amount);
         claimed += amount;
     }
 
@@ -385,7 +395,8 @@ contract Vault {
     }
 
     function totalCumulativeYield() public view returns (uint256) {
-        uint256 delta = stEth.balanceOf(address(this)) - deposits;
+        uint256 balance = asset.convertToAssets(asset.balanceOf(address(this)));
+        uint256 delta = balance < deposits ? 0 : balance - deposits;
         uint256 result = delta + claimed;
         return result;
     }
