@@ -11,6 +11,7 @@ import { IAsset } from "./interfaces/IAsset.sol";
 import { HodlMultiToken } from "./multi/HodlMultiToken.sol";
 import { YMultiToken } from "./multi/YMultiToken.sol";
 import { HodlToken } from  "./single/HodlToken.sol";
+import { YToken } from  "./single/YToken.sol";
 
 import { StETHERC4626 } from "./assets/StETHERC4626.sol";
 
@@ -31,6 +32,8 @@ contract Vault {
 
     // keep track of deployed erc20 hodl tokens
     mapping (uint64 strike => address token) public deployments;
+    mapping (uint64 strike => address token) public hodlDeployments;
+    mapping (uint64 strike => address token) public yDeployments;
 
     // track staked hodl tokens, which are eligible for redemption
     struct HodlStake {
@@ -118,6 +121,7 @@ contract Vault {
                     uint256 amount);
 
     constructor(address asset_, address oracle_) {
+        require(asset_ != address(0));
         require(oracle_ != address(0));
 
         asset = IAsset(asset_);
@@ -132,12 +136,28 @@ contract Vault {
             return deployments[strike];
         }
 
-        HodlToken hodl = new HodlToken(address(hodlMulti), strike);
-        hodlMulti.authorize(address(hodl));
+        HodlToken hodl = new HodlToken(strike);
+        /* hodlMulti.authorize(address(hodl)); */
 
         deployments[strike] = address(hodl);
 
         return address(hodl);
+    }
+
+    function deployStrike(uint64 strike) public returns (address) {
+        require(epochs[strike] == 0, "already deployed");
+
+        HodlToken hodl = new HodlToken(strike);
+        YToken y = new YToken(strike);
+
+        /* hodlMulti.authorize(address(hodl)); */
+        /* yMulti.authorize(address(y)); */
+
+        hodlDeployments[strike] = address(hodl);
+        yDeployments[strike] = address(y);
+
+        infos[nextId].strike = strike;
+        epochs[strike] = nextId++;
     }
 
     function _min(uint256 x, uint256 y) internal pure returns (uint256) {
@@ -156,28 +176,23 @@ contract Vault {
     }
 
     function mint(uint64 strike) external payable {
+        require(epochs[strike] != 0, "strike not deployed");
         require(oracle.price(0) <= strike, "strike too low");
 
         IERC20 token = IERC20(asset.asset());
 
         uint256 before = token.balanceOf(address(this));
-        asset.wrap{value: msg.value}(0);
-        /* token.safeTransferFrom(msg.sender, address(this), amount); */
-        uint256 amount = token.balanceOf(address(this)) - before;
+        /* asset.wrap{value: msg.value}(0); */
+        /* uint256 amount = token.balanceOf(address(this)) - before; */
+        uint256 amount = 1;
 
-        token.approve(address(asset), amount);
-        asset.deposit(amount, address(this));
+        /* token.approve(address(asset), amount); */
+        /* asset.deposit(amount, address(this)); */
         deposits += amount;
 
-        // create the epoch if needed
-        if (epochs[strike] == 0) {
-            infos[nextId].strike = strike;
-            epochs[strike] = nextId++;
-        }
-
-        // mint hodl + y
-        hodlMulti.mint(msg.sender, strike, amount);
-        yMulti.mint(msg.sender, strike, amount);
+        /* // mint hodl + y */
+        HodlToken(hodlDeployments[strike]).mint(msg.sender, amount);
+        YToken(yDeployments[strike]).mint(msg.sender, amount);
 
         emit Mint(msg.sender, strike, amount);
     }

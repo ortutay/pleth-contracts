@@ -6,7 +6,7 @@ import "forge-std/console.sol";
 import { Ownable } from  "@openzeppelin/contracts/access/Ownable.sol";
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
-contract HodlToken is ERC20, Ownable {
+contract YToken is ERC20, Ownable {
 
     uint256 public immutable strike;
 
@@ -16,8 +16,8 @@ contract HodlToken is ERC20, Ownable {
     constructor(uint256 strike_) ERC20("", "") Ownable(msg.sender) {
         strike = strike_;
 
-        _name = "hodl token"; // todo
-        _symbol = "hodlt"; // todo
+        _name = "y token"; // todo
+        _symbol = "yt"; // todo
     }
 
     function name() public view override returns (string memory) {

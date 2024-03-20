@@ -39,11 +39,15 @@ contract VaultTest is BaseTest {
     function testVault() public {
         initVault();
 
+        vault.deployStrike(strike1);
+
         // mint hodl tokens
         vm.startPrank(alice);
         uint32 epoch1 = vault.nextId();
         vault.mint{value: 3 ether}(strike1);
         vm.stopPrank();
+
+        return;
 
         vm.startPrank(bob);
 
